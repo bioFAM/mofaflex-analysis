@@ -56,7 +56,7 @@ def load_xenium_breast_cancer():
         chromium = sc.read_h5ad("data/chromium.h5ad")
     else:
         chromium = sc.read_10x_h5(
-            "/data/walter/prismo-analysis/application_xenium/data/chromium/filtered_feature_bc_matrix.h5"
+            "data/chromium/filtered_feature_bc_matrix.h5"
         )
         chromium_celltypes = pd.read_excel(
             "data/celltypes.xlsx", sheet_name="scFFPE-Seq"
