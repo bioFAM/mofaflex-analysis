@@ -385,7 +385,7 @@ def get_factor_loadings(model, with_dense=False):
     if type(model).__name__ == "PRISMO":
         w_hat = model.get_weights("numpy")["view_0"]
         if not with_dense and model.n_dense_factors > 0:
-            return w_hat[model.n_dense_factors :, :]
+            return w_hat[model.n_dense_factors:, :]
         return w_hat
     if type(model).__name__ == "MuVI":
         w_hat = model.get_factor_loadings(as_df=False)["view_0"]
@@ -571,7 +571,7 @@ def get_reconstruction_fraction(true_mask, noisy_mask, model, top=None):
 
 def get_average_precision(true_mask, model, per_factor=False, top=None):
     w_hat = get_factor_loadings(model)
-    feature_idx, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
+    _, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
     if not per_factor:
         return average_precision_score((true_mask).flatten(), np.abs(w_hat).flatten())
     per_factor_aupr = []
@@ -587,7 +587,7 @@ def get_average_precision(true_mask, model, per_factor=False, top=None):
 
 def plot_precision_recall(true_mask, model, top=None):
     w_hat = get_factor_loadings(model)
-    feature_idx, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
+    _, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
     return PrecisionRecallDisplay.from_predictions(
         (true_mask).flatten(), np.abs(w_hat).flatten(), plot_chance_level=True
     )
