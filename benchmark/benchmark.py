@@ -320,6 +320,10 @@ def train_muvi(data, mask, seed=0, terms=None, **kwargs):
 
 def train_prismo(data, mask, seed=None, terms=None, **kwargs):
     adata = ad.AnnData(data)
+    obs_names = adata.obs.index.tolist()
+    var_names = adata.var.index.tolist()
+    adata.obs_names = sorted(obs_names)
+    adata.var_names = sorted(var_names)
     if terms is None:
         terms = [f"factor_{k}" for k in range(mask.shape[0])]
     adata.varm["I"] = pd.DataFrame(mask, index=terms, columns=adata.var_names).T
