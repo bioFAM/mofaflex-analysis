@@ -147,7 +147,7 @@ def train_nmf(data, mask, seed=0, **kwargs):
     return model
 
 
-def train_spectra(data, mask, seed=0, terms=None, **kwargs):
+def train_spectra(data, mask, terms=None, **kwargs):
     adata = ad.AnnData(data)
     annot = pd.DataFrame(mask, columns=adata.var_names)
     if terms is not None:
@@ -163,7 +163,7 @@ def train_spectra(data, mask, seed=0, terms=None, **kwargs):
     rho = kwargs.pop("rho", 0.001)
     num_epochs = kwargs.pop("num_epochs", 10000)
 
-    model = Spectra.est_spectra(
+    return Spectra.est_spectra(
         adata=adata,
         gene_set_dictionary=annot,  # because we do not use the cell types
         # L=n_factors,
@@ -186,8 +186,6 @@ def train_spectra(data, mask, seed=0, terms=None, **kwargs):
         num_epochs=num_epochs,  # for demonstration purposes we will only run 2 epochs, we recommend 10,000 epochs
         **kwargs,
     )
-
-    return model
 
 
 def train_expimap(data, mask, seed=0, terms=None, **kwargs):
