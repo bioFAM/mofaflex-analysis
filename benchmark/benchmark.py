@@ -13,6 +13,7 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
     root_mean_squared_error,
 )
+from Spectra import Spectra_gpu
 
 # import muvi
 from prismo.prismo import PRISMO, DataOptions, ModelOptions, TrainingOptions
@@ -375,8 +376,7 @@ def train_prismo(data, mask, seed=None, terms=None, **kwargs):
         save_path=None,
         seed=seed,
     )
-    model = PRISMO()
-    model.fit({"view_0": adata}, data_opts, model_opts, training_opts)
+    model = PRISMO({"view_0": adata}, data_opts, model_opts, training_opts)
 
     return model
 
