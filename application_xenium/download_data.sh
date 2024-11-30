@@ -21,13 +21,9 @@ popd
 mkdir -p data/xenium
 pushd data/xenium
 wget https://cf.10xgenomics.com/samples/xenium/1.0.1/Xenium_FFPE_Human_Breast_Cancer_Rep1/Xenium_FFPE_Human_Breast_Cancer_Rep1_outs.zip
-unzip Xenium_FFPE_Human_Breast_Cancer_Rep1_outs.zip -d data/xenium
-mv outs/ .
+unzip -j Xenium_FFPE_Human_Breast_Cancer_Rep1_outs.zip outs/cell_feature_matrix.h5 outs/cells.csv.gz
 gunzip cells.csv.gz
-find . -type f -not -name 'cell_feature_matrix.h5' -not -name 'cells.csv' -delete
-rm -r analysis
-rm -r cell_feature_matrix
-rm -r outs
+rm Xenium_FFPE_Human_Breast_Cancer_Rep1_outs.zip
 popd
 
 # Chromium
