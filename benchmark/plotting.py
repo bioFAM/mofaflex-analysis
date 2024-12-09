@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 import seaborn as sns
+import plotnine as p9
+
 
 HEATMAP = "heatmap"
 MATRIXPLOT = "matrixplot"
@@ -20,6 +22,59 @@ BOXPLOT = "boxplot"
 BOXENPLOT = "boxenplot"
 VIOLINPLOT = "violinplot"
 GROUP_PL_TYPES = [STRIPPLOT, BOXPLOT, BOXENPLOT, VIOLINPLOT]
+
+colors_disc = [
+    "#FF9999",
+    "#66B2FF",
+    "#99FF99",
+    "#FFCC99",
+    "#FF99CC",
+    "#99CCFF",
+    "#FF6666",
+    "#66CC00",
+]
+colors_div = ["#214D83", "#7D1B26"]  # blue, red
+
+
+def plot_scores(
+    score_df_dict,
+    model_names=None,
+    model_labels=None,
+    ylim=None,
+    boxplot_kwargs={},
+    xticklabels_kwargs={},
+):
+    for score_name, score_df in score_df_dict.items():
+        if model_names is not None:
+            score_df = score_df.loc[:, model_names]
+
+        df_long = score_df.melt(var_name="Model", value_name="Score")
+        df_long["Metric"] = score_name
+
+        p = (
+            p9.ggplot(df_long, p9.aes(x="Model", y="Score", fill="Model"))
+            + p9.geom_boxplot(**boxplot_kwargs)
+            + p9.labs(title=score_name)
+            + p9.scale_fill_manual(values=colors_disc[: len(score_df.columns)])
+            + p9.theme(axis_text_x=p9.element_text(**xticklabels_kwargs), figure_size=(6, 4))
+            + p9.scale_x_discrete(
+                limits=[
+                    "Expimap",
+                    "Spectra",
+                    "PRISMO",
+                    "PRISMO$_{NN}$",
+                ]
+            )
+        )
+
+        if ylim is not None:
+            p = p + ylim(ylim[0], ylim[1])
+
+        if model_labels is not None:
+            p = p + p9.scale_x_discrete(labels=model_labels)
+
+        p.show()
+
 
 def plot_top_weights(model, factor_idx, view_idx="all", top=25, ranked=True, figsize=None, **kwargs):
     """Scatterplot of factor loadings for specific factors."""

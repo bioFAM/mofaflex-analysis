@@ -340,6 +340,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
     n_particles = kwargs.pop("n_particles", 1)
     lr = kwargs.pop("lr", 0.003)
     save_path = kwargs.pop(".", None)
+    # dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
 
     early_stopper_patience = kwargs.pop("early_stopper_patience", 100)
 
@@ -365,6 +366,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         prior_penalty=prior_penalty,
         init_factors=init_factors,
         init_scale=init_scale,
+        # # dense_factor_scale=dense_factor_scale
     )
 
     training_opts = TrainingOptions(
@@ -588,7 +590,7 @@ def get_average_precision(true_mask, model, per_factor=False, top=None):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             return average_precision_score(
-                (true_mask).flatten(), np.abs(w_hat).flatten()
+                (true_mask).flatten(), np.abs(w_hat).flatten(), zero
             )
     per_factor_aupr = []
     for k in range(w_hat.shape[0]):
