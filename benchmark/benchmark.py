@@ -1,5 +1,5 @@
 import logging
-
+import warnings
 import anndata as ad
 import mudata as mu
 import numpy as np
@@ -16,7 +16,7 @@ from sklearn.metrics import (
 from Spectra import Spectra_gpu
 
 # import muvi
-from prismo.prismo import PRISMO, DataOptions, ModelOptions, TrainingOptions
+from prismo import PRISMO, DataOptions, ModelOptions, TrainingOptions
 
 logger = logging.getLogger(__name__)
 
@@ -317,8 +317,8 @@ def train_muvi(data, mask, seed=0, terms=None, **kwargs):
     return model
 
 
-def train_prismo(data, mask, seed=None, terms=None, **kwargs):
-    adata = ad.AnnData(data)
+def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
+    adata = ad.AnnData(data, obs=obs, var=var)
     obs_names = adata.obs.index.tolist()
     var_names = adata.var.index.tolist()
     adata.obs_names = sorted(obs_names)
@@ -332,11 +332,14 @@ def train_prismo(data, mask, seed=None, terms=None, **kwargs):
     n_factors = kwargs.pop("n_factors", 3)
     likelihood = kwargs.pop("likelihood", "Normal")
     nmf = kwargs.pop("nmf", False)
+    init_factors = kwargs.pop("init_factors", "random")
+    init_scale = kwargs.pop("init_scale", 0.1)
 
     batch_size = kwargs.pop("batch_size", 0)
     max_epochs = kwargs.pop("max_epochs", 10000)
     n_particles = kwargs.pop("n_particles", 1)
     lr = kwargs.pop("lr", 0.003)
+    save_path = kwargs.pop(".", None)
 
     early_stopper_patience = kwargs.pop("early_stopper_patience", 100)
 
@@ -360,8 +363,8 @@ def train_prismo(data, mask, seed=None, terms=None, **kwargs):
         annotations={"view_0": adata.varm["I"].T},
         annotations_varm_key=None,
         prior_penalty=prior_penalty,
-        init_factors="random",
-        init_scale=0.1,
+        init_factors=init_factors,
+        init_scale=init_scale,
     )
 
     training_opts = TrainingOptions(
@@ -372,8 +375,7 @@ def train_prismo(data, mask, seed=None, terms=None, **kwargs):
         lr=lr,
         early_stopper_patience=early_stopper_patience,
         print_every=500,
-        save=False,
-        save_path=None,
+        save_path=save_path,
         seed=seed,
     )
     model = PRISMO({"view_0": adata}, data_opts, model_opts, training_opts)
@@ -387,7 +389,7 @@ def get_factor_loadings(model, with_dense=False):
     if type(model).__name__ == "PRISMO":
         w_hat = model.get_weights("numpy")["view_0"]
         if not with_dense and model.n_dense_factors > 0:
-            return w_hat[model.n_dense_factors:, :]
+            return w_hat[model.n_dense_factors :, :]
         return w_hat
     if type(model).__name__ == "MuVI":
         w_hat = model.get_factor_loadings(as_df=False)["view_0"]
@@ -508,7 +510,9 @@ def sort_and_subset(w_hat, true_mask, top=None):
     return argsort_indices, sorted_w_hat, sorted_true_mask
 
 
-def get_binary_scores(true_mask, model, threshold=0.0, per_factor=False, top=None):
+def get_binary_scores(
+    true_mask, model, threshold=0.0, per_factor=False, top=None, verbose=False
+):
     w_hat = get_factor_loadings(model)
     feature_idx, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
 
@@ -517,6 +521,7 @@ def get_binary_scores(true_mask, model, threshold=0.0, per_factor=False, top=Non
             (true_mask).flatten(),
             (np.abs(w_hat) > threshold).flatten(),
             average="binary",
+            zero_division=1,
         )
     else:
         prec = None
@@ -532,12 +537,14 @@ def get_binary_scores(true_mask, model, threshold=0.0, per_factor=False, top=Non
                 (true_mask).flatten(),
                 (np.abs(w_hat) > threshold_).flatten(),
                 average="binary",
+                zero_division=1,
             )
 
             if f1 is None or f1_ > f1:
                 threshold = threshold_
                 prec, rec, f1, supp = prec_, rec_, f1_, supp_
-        print(f"best threshold: {threshold}")
+        if verbose:
+            print(f"best threshold: {threshold}")
 
     if not per_factor:
         return prec, rec, f1, threshold
@@ -550,7 +557,10 @@ def get_binary_scores(true_mask, model, threshold=0.0, per_factor=False, top=Non
         loadings_hat = np.abs(w_hat[k, :])
         order = np.argsort(loadings_hat)[::-1]
         prec, rec, f1, _ = precision_recall_fscore_support(
-            mask[order], loadings_hat[order] > threshold, average="binary"
+            mask[order],
+            loadings_hat[order] > threshold,
+            average="binary",
+            zero_division=1,
         )
         per_factor_prec.append(prec)
         per_factor_rec.append(rec)
@@ -575,15 +585,21 @@ def get_average_precision(true_mask, model, per_factor=False, top=None):
     w_hat = get_factor_loadings(model)
     _, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
     if not per_factor:
-        return average_precision_score((true_mask).flatten(), np.abs(w_hat).flatten())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return average_precision_score(
+                (true_mask).flatten(), np.abs(w_hat).flatten()
+            )
     per_factor_aupr = []
     for k in range(w_hat.shape[0]):
         mask = true_mask[k, :]
         loadings_hat = np.abs(w_hat[k, :])
         order = np.argsort(loadings_hat)[::-1]
-        per_factor_aupr.append(
-            average_precision_score(mask[order], loadings_hat[order])
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            per_factor_aupr.append(
+                average_precision_score(mask[order], loadings_hat[order])
+            )
     return per_factor_aupr
 
 
