@@ -1,5 +1,6 @@
 data/
 **/data/
+**/models/
 comparison_mefisto_visium/__pycache__/data_loader.cpython-312.pyc
 comparison_mefisto_evodevo/__pycache__/data_loader.cpython-312.pyc
 __pycache__/
