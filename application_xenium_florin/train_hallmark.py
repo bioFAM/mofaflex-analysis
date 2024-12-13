@@ -3,14 +3,14 @@ import argparse
 from data_loader import load_xenium_breast_cancer
 import numpy as np
 
-from prismo.prismo import (
+from prismo import (
     PRISMO,
     DataOptions,
     ModelOptions,
     TrainingOptions,
     SmoothOptions,
+    feature_sets
 )
-from prismo import feature_sets
 
 def to_upper(feature_set_collection):
     return feature_sets.FeatureSets(
@@ -35,7 +35,7 @@ def main():
     data["group_xenium"]["rna"].var_names = (data["group_xenium"]["rna"].var["symbol"].astype(str))
 
     # load annotations
-    gene_set_collection = to_upper(feature_sets.from_gmt(
+    gene_set_collection = to_upper(feature_sets.FeatureSets.from_gmt(
         "../msigdb/h.all.v7.5.1.symbols.gmt", name="hallmark"
     ))
 
@@ -76,11 +76,10 @@ def main():
         TrainingOptions(
             device=args.device,
             batch_size=10000,
-            max_epochs=300,
+            max_epochs=500,
             lr=3e-3,
             early_stopper_patience=20,
             print_every=1,
-            save=True,
             save_path=args.save_path,
             seed=92832,
         ),
