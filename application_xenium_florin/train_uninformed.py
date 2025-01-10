@@ -3,7 +3,7 @@ import argparse
 from data_loader import load_xenium_breast_cancer
 import numpy as np
 
-from prismo.prismo import (
+from prismo import (
     PRISMO,
     DataOptions,
     ModelOptions,
@@ -42,7 +42,7 @@ def main():
             plot_data_overview=False
         ),
         ModelOptions(
-            n_factors=10,
+            n_factors=20,
             weight_prior="Horseshoe",
             factor_prior={"group_xenium": "GP", "group_chromium": "Normal"},
             likelihoods="Normal",
@@ -56,7 +56,6 @@ def main():
             lr=3e-3,
             early_stopper_patience=20,
             print_every=1,
-            save=True,
             save_path=args.save_path,
             seed=59283,
         ),

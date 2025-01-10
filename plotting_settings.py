@@ -1,25 +1,55 @@
-from plotnine import *
-import plotnine as p9
 import matplotlib as mpl
+from matplotlib import font_manager
+import plotnine
+from functools import partial
+import numpy as np
+from plotnine import *
+from mizani.palettes import brewer_pal
+
+
+helvetica_path = '/home/f506r/.local/share/fonts/helvetica.ttf'
+font_manager.fontManager.addfont(helvetica_path)
 
 mpl.rcParams["svg.fonttype"] = "none"
-mpl.rcParams["font.size"] = mpl.rcParams["axes.labelsize"] = mpl.rcParams[
-    "axes.titlesize"
-] = mpl.rcParams["xtick.labelsize"] = mpl.rcParams["ytick.labelsize"] = mpl.rcParams[
-    "legend.fontsize"
-] = mpl.rcParams["figure.titlesize"] = 7
+mpl.rcParams["font.family"] = "helvetical"
+mpl.rcParams["font.size"] = 7
+mpl.rcParams["axes.labelsize"] = 7
+mpl.rcParams["axes.titlesize"] = 7
+mpl.rcParams["xtick.labelsize"] = 7
+mpl.rcParams["ytick.labelsize"] = 7
+mpl.rcParams["legend.fontsize"] = 7
+mpl.rcParams["figure.titlesize"] = 7
 
-p9.theme_set(p9.theme_bw())
+plotnine.options.base_family = "Helvetica"
+th = theme_bw(base_size=7, base_family="Helvetica") + theme(
+    line=element_line(size=0.5),
+    rect=element_rect(size=0.5),
+    panel_grid_minor=element_blank(),
+    panel_border=element_line(),
+    axis_ticks=element_line(color="black"),
+    axis_ticks_minor=element_blank(),
+    axis_text=element_text(color="black", size=7),
+    strip_background=element_blank(),
+    strip_text=element_text(color="black", size=7),
+    legend_text=element_text(size=7),
+    legend_key=element_blank(),
+    plot_title=element_text(ha="center"),
+    aspect_ratio=1,
+)
+theme_set(th)
 
-DISCRETE_COLORS = [
-    "#FF9999",
-    "#66B2FF",
-    "#99FF99",
-    "#FFCC99",
-    "#FF99CC",
-    "#99CCFF",
-    "#FF6666",
-    "#66CC00",
-]
-discrete_scale_fill = scale_fill_manual(values=DISCRETE_COLORS)
-discrete_scale_color = scale_color_manual(values=DISCRETE_COLORS)
+
+def _rescale_zerosymmetric(x, to: tuple[float, float] = (0, 1), _from: tuple[float, float] | None = None):
+    _from = _from or (np.min(x), np.max(x))
+    return np.interp(x, (_from[0], 0, _from[1]), (0, 0.5, 1))
+
+_scale_fill_zerosymmetric_diverging = partial(
+    scale_fill_gradientn,
+    colors=brewer_pal(type="div", palette="RdBu", direction=-1)(11),
+    rescaler=_rescale_zerosymmetric,
+    expand=(0, 0),
+)
+
+_weights_inferred_color_scale = scale_color_manual(
+    values=("red", "black"), breaks=(True, False), labels=("Inferred", "Annotated")
+)

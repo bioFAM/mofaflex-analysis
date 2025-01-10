@@ -42,8 +42,8 @@ def main():
     # filter annotations by overlap with available genes
     gene_set_collection = gene_set_collection.filter(
         np.union1d(data["group_chromium"]["rna"].var_names, data["group_xenium"]["rna"].var_names),
-        min_fraction=0.0,
-        min_count=0,
+        min_fraction=0.3,
+        min_count=10,
         max_count=None,
     )
 
