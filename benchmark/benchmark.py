@@ -419,7 +419,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
     n_particles = kwargs.pop("n_particles", 1)
     lr = kwargs.pop("lr", 0.003)
     save_path = kwargs.pop("save_path", None)
-    dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
+    # dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
     # gamma_prior_scale = kwargs.pop("gamma_prior_scale", 1.0)
 
     early_stopper_patience = kwargs.pop("early_stopper_patience", 100)
@@ -446,7 +446,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         prior_penalty=prior_penalty,
         init_factors=init_factors,
         init_scale=init_scale,
-        dense_factor_scale=dense_factor_scale,
+        # dense_factor_scale=dense_factor_scale,
         # gamma_prior_scale=gamma_prior_scale,
     )
 
