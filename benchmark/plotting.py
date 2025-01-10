@@ -45,31 +45,18 @@ def plot_scores(
     xticklabels_kwargs={},
 ):
     for score_name, score_df in score_df_dict.items():
-        if model_names is not None:
-            score_df = score_df.loc[:, model_names]
-
-        df_long = score_df.melt(var_name="Model", value_name="Score")
-        df_long["Metric"] = score_name
-
         p = (
-            p9.ggplot(df_long, p9.aes(x="Model", y="Score", fill="Model"))
+            p9.ggplot(score_df, p9.aes(x="Model", y="Score", fill="Model"))
             + p9.geom_boxplot(**boxplot_kwargs)
             + p9.labs(title=score_name)
-            + p9.scale_fill_manual(values=colors_disc[: len(score_df.columns)])
+            + p9.scale_fill_manual(values=colors_disc)
             + p9.theme(axis_text_x=p9.element_text(**xticklabels_kwargs), figure_size=(6, 4))
-            + p9.scale_x_discrete(
-                limits=[
-                    "Expimap",
-                    "Spectra",
-                    "PRISMO",
-                    "PRISMO$_{NN}$",
-                ]
-            )
         )
 
         if ylim is not None:
             p = p + ylim(ylim[0], ylim[1])
 
+        # Rename variables according to model_labels
         if model_labels is not None:
             p = p + p9.scale_x_discrete(labels=model_labels)
 

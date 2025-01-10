@@ -14,11 +14,88 @@ from sklearn.metrics import (
     root_mean_squared_error,
 )
 from Spectra import Spectra_gpu
+from prismo import FeatureSets as fs
+
 
 # import muvi
 from prismo import PRISMO, DataOptions, ModelOptions, TrainingOptions
 
 logger = logging.getLogger(__name__)
+
+
+def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
+    adata = ad.read_h5ad("data/kang_tutorial.h5ad").copy()
+    adata.var_names = adata.var_names.str.upper()
+    # adata._inplace_subset_var(adata.to_df().std() > 0.2)
+
+    if "v1" in version:
+        genes = int(version.split("-")[1])
+        adata = adata[
+            :, adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
+        ].copy()
+
+    if database == "RH":
+        hallmark_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+        print(hallmark_collection)
+        reactome_collection = fs.from_gmt(
+            "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
+        ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+        print(reactome_collection)
+        gene_set_collection = hallmark_collection | reactome_collection
+        gene_set_collection = gene_set_collection.merge_similar(
+            metric="jaccard",
+            similarity_threshold=0.8,
+            iteratively=True,
+        )
+        print(gene_set_collection)
+    elif database == "R":
+        gene_set_collection = fs.from_gmt(
+            "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
+        ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+
+    true_mask = gene_set_collection.to_mask(adata.var_names.tolist())
+    terms = true_mask.index.tolist()
+
+    # Modify the prior knowledge introducing noise
+    true_mask_copy = true_mask.copy()
+    true_mask = true_mask.values
+    noisy_mask = get_rand_noisy_mask(rng, true_mask, fpr=fpr, fnr=fnr, seed=seed)
+
+    return adata, true_mask, noisy_mask, terms, true_mask_copy
+
+
+def preprocess(adata):
+    x = adata.X
+    x = x - x.min(axis=0)
+    log_x = np.log1p(x)
+    log_x = log_x / log_x.std()
+    log_x_centered = log_x - log_x.mean(axis=0)
+    # log_x_stdised = log_x_centered / log_x_centered.std()
+
+    return {
+        "expimap": log_x_centered.astype(np.float32),
+        "expimap_nb": x.astype(np.float32),
+        "expimap_hardmask": log_x_centered.astype(np.float32),
+        "expimap_hardmask_nb": x.astype(np.float32),
+        "spectra": log_x.astype(np.float32),
+        "prismo": log_x_centered.astype(np.float32),
+        "prismo_nmf": log_x.astype(np.float32),
+    }
 
 
 def generate_spectra_5d(
@@ -117,7 +194,9 @@ def generate_spectra_5e(
     return w, true_mask, z, x
 
 
-def get_rand_noisy_mask(rng, true_mask, fpr=0.2, fnr=0.2):
+def get_rand_noisy_mask(rng, true_mask, fpr=0.2, fnr=0.2, seed=None):
+    if seed:
+        rng = np.random.default_rng(seed)
     noisy_mask = np.array(true_mask, copy=True)
 
     for k in range(true_mask.shape[0]):
@@ -289,7 +368,7 @@ def train_muvi(data, mask, seed=0, terms=None, **kwargs):
             n_checkpoints=20,
             active_callbacks=["binary_scores", "avg_precision", "rmse"],
             # pass true masks
-            masks={"view_0": true_mask},
+            masks={"view_1": true_mask},
             binary_scores_at=200,
             threshold=0.0,
             log=False,
@@ -339,8 +418,9 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
     max_epochs = kwargs.pop("max_epochs", 10000)
     n_particles = kwargs.pop("n_particles", 1)
     lr = kwargs.pop("lr", 0.003)
-    save_path = kwargs.pop(".", None)
-    # dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
+    save_path = kwargs.pop("save_path", None)
+    dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
+    # gamma_prior_scale = kwargs.pop("gamma_prior_scale", 1.0)
 
     early_stopper_patience = kwargs.pop("early_stopper_patience", 100)
 
@@ -358,15 +438,16 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         n_factors=n_factors,
         weight_prior="Horseshoe",
         factor_prior="Normal",
-        likelihoods={"view_0": likelihood},
+        likelihoods={"view_1": likelihood},
         nonnegative_weights=nmf,
         nonnegative_factors=nmf,
-        annotations={"view_0": adata.varm["I"].T},
+        annotations={"view_1": adata.varm["I"].T},
         annotations_varm_key=None,
         prior_penalty=prior_penalty,
         init_factors=init_factors,
         init_scale=init_scale,
-        # # dense_factor_scale=dense_factor_scale
+        dense_factor_scale=dense_factor_scale,
+        # gamma_prior_scale=gamma_prior_scale,
     )
 
     training_opts = TrainingOptions(
@@ -380,21 +461,20 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         save_path=save_path,
         seed=seed,
     )
-    model = PRISMO({"view_0": adata}, data_opts, model_opts, training_opts)
 
-    return model
+    return PRISMO({"view_1": adata}, data_opts, model_opts, training_opts)
 
 
 def get_factor_loadings(model, with_dense=False):
     if type(model).__name__ == "NMF":
         return model.components_
     if type(model).__name__ == "PRISMO":
-        w_hat = model.get_weights("numpy")["view_0"]
+        w_hat = model.get_weights("numpy")["view_1"]
         if not with_dense and model.n_dense_factors > 0:
             return w_hat[model.n_dense_factors :, :]
         return w_hat
     if type(model).__name__ == "MuVI":
-        w_hat = model.get_factor_loadings(as_df=False)["view_0"]
+        w_hat = model.get_factor_loadings(as_df=False)["view_1"]
         if model.n_dense_factors > 0:
             return w_hat[: -model.n_dense_factors, :]
         return w_hat
@@ -439,7 +519,7 @@ def get_reconstructed(model, data):
             model, with_dense=True
         )
     if type(model).__name__ == "MuVI":
-        return model.get_reconstructed(as_df=False)["view_0"]
+        return model.get_reconstructed(as_df=False)["view_1"]
     if type(model).__name__ == "SPECTRA_Model":
         return model.return_cell_scores() @ (
             model.return_factors() * model.return_gene_scalings()
@@ -585,12 +665,14 @@ def get_reconstruction_fraction(true_mask, noisy_mask, model, top=None):
 
 def get_average_precision(true_mask, model, per_factor=False, top=None):
     w_hat = get_factor_loadings(model)
+    print(w_hat.shape)
     _, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
     if not per_factor:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             return average_precision_score(
-                (true_mask).flatten(), np.abs(w_hat).flatten(), zero
+                (true_mask).flatten(),
+                np.abs(w_hat).flatten(),
             )
     per_factor_aupr = []
     for k in range(w_hat.shape[0]):
