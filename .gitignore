@@ -8,3 +8,5 @@ __pycache__/
 .vscode
 *.pkl
 *.save
+*.hdf5
+*.h5
