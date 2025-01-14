@@ -1,5 +1,4 @@
 import matplotlib as mpl
-from matplotlib import font_manager
 import plotnine
 from functools import partial
 import numpy as np
@@ -7,11 +6,8 @@ from plotnine import *
 from mizani.palettes import brewer_pal
 
 
-helvetica_path = '/home/f506r/.local/share/fonts/helvetica.ttf'
-font_manager.fontManager.addfont(helvetica_path)
-
 mpl.rcParams["svg.fonttype"] = "none"
-mpl.rcParams["font.family"] = "helvetical"
+mpl.rcParams["font.family"] = "Helvetica"
 mpl.rcParams["font.size"] = 7
 mpl.rcParams["axes.labelsize"] = 7
 mpl.rcParams["axes.titlesize"] = 7
@@ -53,3 +49,20 @@ _scale_fill_zerosymmetric_diverging = partial(
 _weights_inferred_color_scale = scale_color_manual(
     values=("red", "black"), breaks=(True, False), labels=("Inferred", "Annotated")
 )
+
+DISCRETE_COLORS = [
+    "#a6cee3",
+    "#1f78b4",
+    "#b2df8a",
+    "#33a02c",
+    "#fb9a99",
+    "#e31a1c",
+    "#fdbf6f",
+    "#ff7f00",
+    "#cab2d6",
+    "#6a3d9a",
+    "#ffff99"
+]
+
+discrete_scale_fill = scale_fill_manual(values=DISCRETE_COLORS)
+discrete_scale_color = scale_color_manual(values=DISCRETE_COLORS)
