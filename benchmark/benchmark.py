@@ -68,7 +68,7 @@ def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
             max_count=200,
         )
 
-    true_mask = gene_set_collection.to_mask(adata.var_names.tolist())
+    true_mask = gene_set_collection.to_mask(adata.var_names.tolist(), sort=False)
     terms = true_mask.index.tolist()
 
     # Modify the prior knowledge introducing noise
@@ -268,11 +268,16 @@ def train_spectra(data, mask, terms=None, **kwargs):
     )
 
 
-def train_expimap(data, mask, seed=0, terms=None, **kwargs):
+def train_expimap(data, mask, obs_names, var_names, seed=0, terms=None, **kwargs):
     adata = ad.AnnData(data)
     adata.obs["cond"] = "cond"
     adata.varm["I"] = mask.T
+    if obs_names is not None:
+        adata.obs_names = obs_names
+    if var_names is not None:
+        adata.var_names = var_names
     if terms is not None:
+        terms = [f"factor_{k}" for k in range(mask.shape[0])]
         adata.uns["terms"] = terms
     else:
         adata.uns["terms"] = [f"factor_{k}" for k in range(mask.shape[0])]
@@ -396,12 +401,16 @@ def train_muvi(data, mask, seed=0, terms=None, **kwargs):
     return model
 
 
-def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
+def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None, terms=None, **kwargs):
     adata = ad.AnnData(data, obs=obs, var=var)
-    obs_names = adata.obs.index.tolist()
-    var_names = adata.var.index.tolist()
-    adata.obs_names = sorted(obs_names)
-    adata.var_names = sorted(var_names)
+    if obs_names is not None:
+        adata.obs_names = obs_names
+    if var_names is not None:
+        adata.var_names = var_names
+    # obs_names = adata.obs.index.tolist()
+    # var_names = adata.var.index.tolist()
+    # adata.obs_names = sorted(obs_names)
+    # adata.var_names = sorted(var_names)
     if terms is None:
         terms = [f"factor_{k}" for k in range(mask.shape[0])]
     adata.varm["I"] = pd.DataFrame(mask, index=terms, columns=adata.var_names).T
@@ -419,7 +428,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
     n_particles = kwargs.pop("n_particles", 1)
     lr = kwargs.pop("lr", 0.003)
     save_path = kwargs.pop("save_path", None)
-    dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
+    # dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
     # gamma_prior_scale = kwargs.pop("gamma_prior_scale", 1.0)
 
     early_stopper_patience = kwargs.pop("early_stopper_patience", 100)
@@ -446,7 +455,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         prior_penalty=prior_penalty,
         init_factors=init_factors,
         init_scale=init_scale,
-        dense_factor_scale=dense_factor_scale,
+        # dense_factor_scale=dense_factor_scale,
         # gamma_prior_scale=gamma_prior_scale,
     )
 
