@@ -10,3 +10,6 @@ __pycache__/
 *.save
 *.hdf5
 *.h5
+*.csv
+*.txt
+*.h5ad

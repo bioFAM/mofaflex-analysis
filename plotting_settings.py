@@ -5,34 +5,59 @@ import numpy as np
 from plotnine import *
 from mizani.palettes import brewer_pal
 
+# Define constants
+FONT_FAMILY = "Helvetica"
+FONT_SIZE = 7
+DISCRETE_COLORS = [
+    "#1f78b4",
+    "#33a02c",
+    "#e31a1c",
+    "#ff7f00",
+    "#6a3d9a",
+    "#a6cee3",
+    "#b2df8a",
+    "#fb9a99",
+    "#fdbf6f",
+    "#cab2d6",
+    "#ffff99",
+]
 
-mpl.rcParams["svg.fonttype"] = "none"
-mpl.rcParams["font.family"] = "Helvetica"
-mpl.rcParams["font.size"] = 7
-mpl.rcParams["axes.labelsize"] = 7
-mpl.rcParams["axes.titlesize"] = 7
-mpl.rcParams["xtick.labelsize"] = 7
-mpl.rcParams["ytick.labelsize"] = 7
-mpl.rcParams["legend.fontsize"] = 7
-mpl.rcParams["figure.titlesize"] = 7
+# Configure matplotlib settings
+def setup_matplotlib():
+    """Configure matplotlib global settings."""
+    settings = {
+        "svg.fonttype": "none",
+        "font.family": FONT_FAMILY,
+        "font.size": FONT_SIZE,
+        "axes.labelsize": FONT_SIZE,
+        "axes.titlesize": FONT_SIZE,
+        "xtick.labelsize": FONT_SIZE,
+        "ytick.labelsize": FONT_SIZE,
+        "legend.fontsize": FONT_SIZE,
+        "figure.titlesize": FONT_SIZE,
+    }
+    mpl.rcParams.update(settings)
 
-plotnine.options.base_family = "Helvetica"
-th = theme_bw(base_size=7, base_family="Helvetica") + theme(
-    line=element_line(size=0.5),
-    rect=element_rect(size=0.5),
-    panel_grid_minor=element_blank(),
-    panel_border=element_line(),
-    axis_ticks=element_line(color="black"),
-    axis_ticks_minor=element_blank(),
-    axis_text=element_text(color="black", size=7),
-    strip_background=element_blank(),
-    strip_text=element_text(color="black", size=7),
-    legend_text=element_text(size=7),
-    legend_key=element_blank(),
-    plot_title=element_text(ha="center"),
-    aspect_ratio=1,
-)
-theme_set(th)
+# Configure plotnine theme
+def setup_plotnine_theme():
+    """Configure and set the default plotnine theme."""
+    plotnine.options.base_family = FONT_FAMILY
+    th = theme_bw(base_size=FONT_SIZE, base_family=FONT_FAMILY) + theme(
+        line=element_line(size=0.5),
+        rect=element_rect(size=0.5),
+        panel_grid_minor=element_blank(),
+        panel_border=element_line(),
+        axis_ticks=element_line(color="black"),
+        axis_ticks_minor=element_blank(),
+        axis_text=element_text(color="black", size=FONT_SIZE),
+        strip_background=element_blank(),
+        strip_text=element_text(color="black", size=FONT_SIZE),
+        legend_text=element_text(size=FONT_SIZE),
+        legend_key=element_blank(),
+        plot_title=element_text(ha="center"),
+        aspect_ratio=1,
+    )
+    theme_set(th)
 
 
 def _rescale_zerosymmetric(x, to: tuple[float, float] = (0, 1), _from: tuple[float, float] | None = None):
@@ -50,19 +75,8 @@ _weights_inferred_color_scale = scale_color_manual(
     values=("red", "black"), breaks=(True, False), labels=("Inferred", "Annotated")
 )
 
-DISCRETE_COLORS = [
-    "#1f78b4",
-    "#33a02c",
-    "#e31a1c",
-    "#ff7f00",
-    "#6a3d9a",
-    "#a6cee3",
-    "#b2df8a",
-    "#fb9a99",
-    "#fdbf6f",
-    "#cab2d6",
-    "#ffff99",
-]
-
 discrete_scale_fill = scale_fill_manual(values=DISCRETE_COLORS)
 discrete_scale_color = scale_color_manual(values=DISCRETE_COLORS)
+
+setup_matplotlib()
+setup_plotnine_theme()
