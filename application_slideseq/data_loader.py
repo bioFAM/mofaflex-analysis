@@ -8,7 +8,7 @@ def load_data():
     data.obsm["spatial"] = data.obs[["x", "y"]].values
     data.var_names = data.var_names.str.upper()
     sc.pp.log1p(data)
-    sc.pp.highly_variable_genes(data, subset=True, n_top_genes=3000)
+    sc.pp.highly_variable_genes(data, subset=True)
 
     data_dict = {}
     for group in data.obs["SampleID"].unique():

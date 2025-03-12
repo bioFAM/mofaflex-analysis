@@ -57,7 +57,7 @@ def main():
             plot_data_overview=False
             ),
         ModelOptions(
-            n_factors=10,
+            n_factors=5,
             weight_prior="Horseshoe",
             factor_prior="GP",
             likelihoods="Normal",
@@ -75,16 +75,15 @@ def main():
             early_stopper_patience=10,
             print_every=1,
             save_path="model.h5",
-            seed=12345,
+            seed=1234,
             ),
         SmoothOptions(
-            n_inducing=1000,
+            n_inducing=500,
             kernel='RBF',
             warp_groups=[],
             mefisto_kernel=False,
         ),
     )
-
 
 if __name__ == "__main__":
     main()

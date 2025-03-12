@@ -13,7 +13,7 @@ def main():
                 plot_data_overview=False
             ),
             ModelOptions(
-                n_factors=5,
+                n_factors=10,
                 weight_prior="Horseshoe",
                 factor_prior="GP",
                 likelihoods="GammaPoisson",
@@ -23,15 +23,15 @@ def main():
             TrainingOptions(
                 device="cuda:1",
                 early_stopper_patience=50,
-                batch_size=2000,
+                batch_size=1000,
                 max_epochs=1000,
-                lr=5e-2,
+                lr=5e-3,
                 print_every=10,
-                save_path=f"models/prismo_5_factors_lr5e-2_{seed}",
+                save_path=f"models/prismo_10_{seed}",
                 seed=seed
             ),
             SmoothOptions(
-                n_inducing=800,
+                n_inducing=500,
                 kernel="Matern"
             )
         )
