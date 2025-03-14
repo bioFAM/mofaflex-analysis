@@ -28,6 +28,9 @@ def load_nsf_slideseq():
     sc.pp.calculate_qc_metrics(adata, qc_vars=["mt"], inplace=True)
     adata = adata[adata.obs.pct_counts_mt < 20]
 
+    # filter out mitochondrial genes
+    adata = adata[:, ~adata.var_names.str.startswith("MT-")]
+
     # filter out cells with low total counts
     sc.pp.filter_cells(adata, min_counts=100)
     sc.pp.filter_genes(adata, min_cells=1)
