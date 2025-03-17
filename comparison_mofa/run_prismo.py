@@ -12,7 +12,7 @@ def main():
     data = load_cll()
 
     for seed in range(10):
-        prismo_model = PRISMO(
+        PRISMO(
             data,
             DataOptions(
                 plot_data_overview=False,
@@ -24,12 +24,11 @@ def main():
                 likelihoods="Normal",
             ),
             TrainingOptions(
-                device="cuda:0",
+                device="cuda:1",
                 max_epochs=10000,
                 lr=0.05,
                 early_stopper_patience=1000,
-                print_every=500,
-                save_path=f"models_hs/prismo_{seed}",
+                save_path=f"models/prismo_hs_normal_{seed}",
                 seed=seed,
             )
         )
