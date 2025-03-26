@@ -7,7 +7,7 @@ from mizani.palettes import brewer_pal
 
 # Define constants
 FONT_FAMILY = "Helvetica"
-FONT_SIZE = 7
+FONT_SIZE = 10
 DISCRETE_COLORS = [
     "#1f78b4",
     "#33a02c",

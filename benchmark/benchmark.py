@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import scarches as sca
 import Spectra
+import scanpy as sc
 from sklearn.decomposition import NMF
 from sklearn.metrics import (
     PrecisionRecallDisplay,
@@ -15,9 +16,6 @@ from sklearn.metrics import (
 )
 from Spectra import Spectra_gpu
 from prismo import FeatureSets as fs
-
-
-# import muvi
 from prismo import PRISMO, DataOptions, ModelOptions, TrainingOptions
 
 logger = logging.getLogger(__name__)
@@ -30,9 +28,27 @@ def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
 
     if "v1" in version:
         genes = int(version.split("-")[1])
-        adata = adata[
-            :, adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
-        ].copy()
+        feature_names = adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
+        adata = adata[:, [x for x in adata.var_names if x in feature_names]].copy()
+    elif "v2" in version:
+        # Compute HVG
+        genes = int(version.split("-")[1])
+        sc.pp.highly_variable_genes(
+            adata,
+            n_top_genes=genes,
+            batch_key="stim",
+            flavor="seurat_v3",
+        )
+        adata = adata[:, adata.var["highly_variable"]].copy()
+    elif "v3" in version:
+        # Compute HVG
+        genes = int(version.split("-")[1])
+        sc.pp.highly_variable_genes(
+            adata,
+            n_top_genes=genes,
+            flavor="seurat_v3",
+        )
+        adata = adata[:, adata.var["highly_variable"]].copy()
 
     if database == "RH":
         hallmark_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
@@ -41,7 +57,6 @@ def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
             min_count=40,
             max_count=200,
         )
-        print(hallmark_collection)
         reactome_collection = fs.from_gmt(
             "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
         ).filter(
@@ -50,18 +65,23 @@ def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
             min_count=40,
             max_count=200,
         )
-        print(reactome_collection)
         gene_set_collection = hallmark_collection | reactome_collection
         gene_set_collection = gene_set_collection.merge_similar(
             metric="jaccard",
             similarity_threshold=0.8,
             iteratively=True,
         )
-        print(gene_set_collection)
     elif database == "R":
         gene_set_collection = fs.from_gmt(
             "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
         ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+    elif database == "H":
+        gene_set_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
             adata.var_names,
             min_fraction=0.4,
             min_count=40,
@@ -322,86 +342,12 @@ def train_expimap(data, mask, seed=0, terms=None, **kwargs):
     return model
 
 
-def train_muvi(data, mask, seed=0, terms=None, **kwargs):
-    adata = ad.AnnData(data)
-    if terms is None:
-        terms = [f"factor_{k}" for k in range(mask.shape[0])]
-    adata.varm["I"] = pd.DataFrame(mask, index=terms, columns=adata.var_names).T
-
-    prior_confidence = kwargs.pop("prior_confidence", 0.99)
-    n_dense = kwargs.pop("n_dense", 0)
-    likelihood = kwargs.pop("likelihood", "normal")
-    nmf = kwargs.pop("nmf", False)
-
-    dense_scale = kwargs.pop("dense_scale", None)
-    batch_size = kwargs.pop("batch_size", 0)
-    n_epochs = kwargs.pop("n_epochs", 10000)
-    n_particles = kwargs.pop("n_particles", 1)
-    learning_rate = kwargs.pop("learning_rate", 0.003)
-
-    tolerance = kwargs.pop("tolerance", 1e-5)
-    patience = kwargs.pop("patience", 10)
-
-    true_mask = kwargs.pop("true_mask", None)
-    n_factors = mask.shape[0]
-
-    model = muvi.tl.from_adata(
-        adata,
-        prior_mask_key="I",
-        n_factors=n_factors + n_dense,
-        prior_confidence=prior_confidence,
-        likelihoods=[likelihood],
-        nmf=[nmf],
-        **kwargs,
-    )
-
-    if dense_scale is not None:
-        for vn in model.view_names:
-            model.prior_scales[vn][-n_dense:, :] = dense_scale
-
-    callbacks = []
-    if true_mask is not None:
-        # this callback logs metrics of the training every X steps to better gauge the training progress
-        log_callback = muvi.LogCallback(
-            model,
-            n_epochs,
-            n_checkpoints=20,
-            active_callbacks=["binary_scores", "avg_precision", "rmse"],
-            # pass true masks
-            masks={"view_1": true_mask},
-            binary_scores_at=200,
-            threshold=0.0,
-            log=False,
-            n_annotated=n_factors,
-        )
-        callbacks.append(log_callback)
-
-    callbacks.append(
-        muvi.EarlyStoppingCallback(
-            n_epochs, min_epochs=n_epochs // 10, tolerance=tolerance, patience=patience
-        )
-    )
-
-    model.fit(
-        batch_size=batch_size,
-        n_epochs=n_epochs,
-        n_particles=n_particles,
-        learning_rate=learning_rate,
-        optimizer="clipped",
-        verbose=1,
-        seed=seed,
-        callbacks=callbacks,
-    )
-
-    return model
-
-
-def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
+def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None, terms=None, **kwargs):
     adata = ad.AnnData(data, obs=obs, var=var)
-    obs_names = adata.obs.index.tolist()
-    var_names = adata.var.index.tolist()
-    adata.obs_names = sorted(obs_names)
-    adata.var_names = sorted(var_names)
+    if obs_names is not None:
+        adata.obs_names = obs_names
+    if var_names is not None:
+        adata.var_names = var_names
     if terms is None:
         terms = [f"factor_{k}" for k in range(mask.shape[0])]
     adata.varm["I"] = pd.DataFrame(mask, index=terms, columns=adata.var_names).T
@@ -419,8 +365,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
     n_particles = kwargs.pop("n_particles", 1)
     lr = kwargs.pop("lr", 0.003)
     save_path = kwargs.pop("save_path", None)
-    # dense_factor_scale = kwargs.pop("dense_factor_scale", 1.0)
-    # gamma_prior_scale = kwargs.pop("gamma_prior_scale", 1.0)
+    remove_constant_features = kwargs.pop("remove_constant_features", False)
 
     early_stopper_patience = kwargs.pop("early_stopper_patience", 100)
 
@@ -432,6 +377,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         use_obs=None,
         use_var=None,
         plot_data_overview=False,
+        remove_constant_features=remove_constant_features
     )
 
     model_opts = ModelOptions(
@@ -441,8 +387,7 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         likelihoods={"view_1": likelihood},
         nonnegative_weights=nmf,
         nonnegative_factors=nmf,
-        annotations={"view_1": adata.varm["I"].T},
-        annotations_varm_key=None,
+        annotations_varm_key="I",
         prior_penalty=prior_penalty,
         init_factors=init_factors,
         init_scale=init_scale,
@@ -461,8 +406,11 @@ def train_prismo(data, mask, obs, var, seed=None, terms=None, **kwargs):
         save_path=save_path,
         seed=seed,
     )
+    
+    print(type(adata))
+    print(adata.shape)
 
-    return PRISMO({"view_1": adata}, data_opts, model_opts, training_opts)
+    return PRISMO({"group_1": {"view_1": adata}}, data_opts, model_opts, training_opts)
 
 
 def get_factor_loadings(model, with_dense=False):
