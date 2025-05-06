@@ -1,7 +1,6 @@
 import logging
 import warnings
 import anndata as ad
-import mudata as mu
 import numpy as np
 import pandas as pd
 import scarches as sca
@@ -15,8 +14,8 @@ from sklearn.metrics import (
     root_mean_squared_error,
 )
 from Spectra import Spectra_gpu
-from prismo import FeatureSets as fs
-from prismo import PRISMO, DataOptions, ModelOptions, TrainingOptions
+from mofaflex import FeatureSets as fs
+from mofaflex import MOFAFLEX, DataOptions, ModelOptions, TrainingOptions
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,9 @@ def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
 
     if "v1" in version:
         genes = int(version.split("-")[1])
-        feature_names = adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
+        feature_names = (
+            adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
+        )
         adata = adata[:, [x for x in adata.var_names if x in feature_names]].copy()
     elif "v2" in version:
         # Compute HVG
@@ -99,6 +100,249 @@ def get_data(fpr, fnr, database=None, version=None, seed=None, rng=None):
     return adata, true_mask, noisy_mask, terms, true_mask_copy
 
 
+def get_data_synthetic_missing_input(
+    noise_level,
+    database=None,
+    version=None,
+    seed=None,
+    rng=None,
+    y_noise=0.01,
+    n_samples=10000,
+):
+    adata = ad.read_h5ad("data/kang_tutorial.h5ad").copy()
+    adata.var_names = adata.var_names.str.upper()
+
+    if "v1" in version:
+        genes = int(version.split("-")[1])
+        feature_names = (
+            adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
+        )
+        adata = adata[:, [x for x in adata.var_names if x in feature_names]].copy()
+    elif "v2" in version:
+        # Compute HVG
+        genes = int(version.split("-")[1])
+        sc.pp.highly_variable_genes(
+            adata,
+            n_top_genes=genes,
+            batch_key="stim",
+            flavor="seurat_v3",
+        )
+        adata = adata[:, adata.var["highly_variable"]].copy()
+    elif "v3" in version:
+        # Compute HVG
+        genes = int(version.split("-")[1])
+        sc.pp.highly_variable_genes(
+            adata,
+            n_top_genes=genes,
+            flavor="seurat_v3",
+        )
+        adata = adata[:, adata.var["highly_variable"]].copy()
+
+    if database == "RH":
+        hallmark_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+        reactome_collection = fs.from_gmt(
+            "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
+        ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+        gene_set_collection = hallmark_collection | reactome_collection
+        gene_set_collection = gene_set_collection.merge_similar(
+            metric="jaccard",
+            similarity_threshold=0.8,
+            iteratively=True,
+        )
+    elif database == "R":
+        gene_set_collection = fs.from_gmt(
+            "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
+        ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+    elif database == "H":
+        gene_set_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+
+    true_mask = gene_set_collection.to_mask(adata.var_names.tolist())
+    terms = true_mask.index.tolist()
+
+    # Modify the prior knowledge introducing noise
+    true_mask_copy = true_mask.copy()
+    true_mask = true_mask.values
+    noisy_mask = get_rand_noisy_mask(rng, true_mask, fpr=0, fnr=0, seed=seed)
+
+    # Create synthetic z
+    z = np.random.normal(size=(n_samples, true_mask.shape[0]))
+    z = z - z.mean(axis=0)
+    z = z / z.std(axis=0)
+
+    # Create synthetic w
+    w = noisy_mask
+
+    # Create synthetic data
+    y = z @ w
+    # y = y - y.mean(axis=0)
+    # y = y / y.std(axis=0)
+    y = y.astype(np.float32)
+
+    # Add some final noise onto y
+    y += np.random.normal(0, y_noise, size=y.shape)
+
+    adata_synthetic_true = ad.AnnData(y.copy())
+    adata_synthetic_true.obs = pd.DataFrame(index=[str(x) for x in range(y.shape[0])])
+    adata_synthetic_true.var = pd.DataFrame(index=[str(x) for x in range(y.shape[1])])
+    adata_synthetic_true.obs_names = [str(x) for x in range(y.shape[0])]
+    adata_synthetic_true.var_names = [str(x) for x in range(y.shape[1])]
+    adata_synthetic_true.varm["I"] = noisy_mask.T
+    adata_synthetic_true.uns["terms"] = terms
+
+    # Create missing input
+    missing_input = np.random.choice(
+        [True, False], size=y.shape, p=[noise_level, 1 - noise_level]
+    )
+    # Replace with nan
+    y[missing_input] = np.nan
+
+    # Create synthetic adata
+    adata_synthetic = ad.AnnData(y)
+    adata_synthetic.obs = pd.DataFrame(index=[str(x) for x in range(y.shape[0])])
+    adata_synthetic.var = pd.DataFrame(index=[str(x) for x in range(y.shape[1])])
+    adata_synthetic.obs_names = [str(x) for x in range(y.shape[0])]
+    adata_synthetic.var_names = [str(x) for x in range(y.shape[1])]
+    adata_synthetic.varm["I"] = noisy_mask.T
+    adata_synthetic.uns["terms"] = terms
+
+    return adata_synthetic, adata_synthetic_true, true_mask, noisy_mask, terms, true_mask_copy
+
+def get_data_synthetic(
+    fpr,
+    fnr,
+    database=None,
+    version=None,
+    seed=None,
+    rng=None,
+    y_noise=0.01,
+    n_samples=10000,
+):
+    adata = ad.read_h5ad("data/kang_tutorial.h5ad").copy()
+    adata.var_names = adata.var_names.str.upper()
+
+    if "v1" in version:
+        genes = int(version.split("-")[1])
+        feature_names = (
+            adata.to_df().var().sort_values(ascending=False).iloc[:genes].index
+        )
+        adata = adata[:, [x for x in adata.var_names if x in feature_names]].copy()
+    elif "v2" in version:
+        # Compute HVG
+        genes = int(version.split("-")[1])
+        sc.pp.highly_variable_genes(
+            adata,
+            n_top_genes=genes,
+            batch_key="stim",
+            flavor="seurat_v3",
+        )
+        adata = adata[:, adata.var["highly_variable"]].copy()
+    elif "v3" in version:
+        # Compute HVG
+        genes = int(version.split("-")[1])
+        sc.pp.highly_variable_genes(
+            adata,
+            n_top_genes=genes,
+            flavor="seurat_v3",
+        )
+        adata = adata[:, adata.var["highly_variable"]].copy()
+
+    if database == "RH":
+        hallmark_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+        reactome_collection = fs.from_gmt(
+            "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
+        ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+        gene_set_collection = hallmark_collection | reactome_collection
+        gene_set_collection = gene_set_collection.merge_similar(
+            metric="jaccard",
+            similarity_threshold=0.8,
+            iteratively=True,
+        )
+    elif database == "R":
+        gene_set_collection = fs.from_gmt(
+            "../msigdb/c2.cp.reactome.v7.5.1.symbols.gmt"
+        ).filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+    elif database == "H":
+        gene_set_collection = fs.from_gmt("../msigdb/h.all.v7.5.1.symbols.gmt").filter(
+            adata.var_names,
+            min_fraction=0.4,
+            min_count=40,
+            max_count=200,
+        )
+
+    true_mask = gene_set_collection.to_mask(adata.var_names.tolist())
+    terms = true_mask.index.tolist()
+
+    # Modify the prior knowledge introducing noise
+    true_mask_copy = true_mask.copy()
+    true_mask = true_mask.values
+    noisy_mask = get_rand_noisy_mask(rng, true_mask, fpr=fpr, fnr=fnr, seed=seed)
+
+    # Create synthetic z
+    z = np.random.normal(size=(n_samples, true_mask.shape[0]))
+    z = z - z.mean(axis=0)
+    z = z / z.std(axis=0)
+
+    # Create synthetic w
+    w = noisy_mask
+
+    # Create synthetic data
+    y = z @ w
+    # y = y - y.mean(axis=0)
+    # y = y / y.std(axis=0)
+    y = y.astype(np.float32)
+
+    # Add some final noise onto y
+    y += np.random.normal(0, y_noise, size=y.shape)
+
+    # Create synthetic adata
+    adata_synthetic = ad.AnnData(y)
+    adata_synthetic.obs = pd.DataFrame(index=[str(x) for x in range(y.shape[0])])
+    adata_synthetic.var = pd.DataFrame(index=[str(x) for x in range(y.shape[1])])
+    adata_synthetic.obs_names = [str(x) for x in range(y.shape[0])]
+    adata_synthetic.var_names = [str(x) for x in range(y.shape[1])]
+    adata_synthetic.varm["I"] = noisy_mask.T
+    adata_synthetic.uns["terms"] = terms
+
+    # import ipdb; ipdb.set_trace()
+
+    return adata_synthetic, adata, true_mask, noisy_mask, terms, true_mask_copy
+
+
 def preprocess(adata):
     x = adata.X
     x = x - x.min(axis=0)
@@ -113,105 +357,28 @@ def preprocess(adata):
         "expimap_hardmask": log_x_centered.astype(np.float32),
         "expimap_hardmask_nb": x.astype(np.float32),
         "spectra": log_x.astype(np.float32),
-        "prismo": log_x_centered.astype(np.float32),
-        "prismo_nmf": log_x.astype(np.float32),
+        "mofaflex": log_x_centered.astype(np.float32),
+        "mofaflex_nmf": log_x.astype(np.float32),
     }
 
+def preprocess_missing(adata):
+    "Normalize data, but skip missing values"
+    x = adata.X
+    # import ipdb; ipdb.set_trace()
+    x = x - np.nanmin(x, axis=0)
+    log_x = np.log1p(x)
+    log_x = log_x / np.nanstd(log_x, axis=0)
+    log_x_centered = log_x - np.nanmean(log_x, axis=0)
 
-def generate_spectra_5d(
-    rng,
-    n_samples=20,
-    n_features=500,
-    n_factors=3,
-    n_informative_factors=None,
-    corr_coef=0.95,
-    sparsity_interval=None,
-    sigma=2,
-):
-    if sparsity_interval is None:
-        sparsity_interval = (0.85, 0.95)
-    if n_informative_factors is None:
-        n_informative_factors = n_factors
-    print(corr_coef)
-    # factor scores
-    z_mu = np.zeros(n_factors)
-    z_cov = np.eye(n_factors)
-    z_cov[0, 1] = corr_coef
-    z_cov[1, 0] = corr_coef
-    z = np.exp(rng.multivariate_normal(z_mu, z_cov, size=n_samples))
-
-    w_shape = (n_factors, n_features)
-    # half-cauchy
-    w = np.abs(rng.standard_cauchy(w_shape).reshape(w_shape))
-    true_mask = np.ones_like(w).astype(bool)
-
-    for k in range(n_factors):
-        sparsity_thresh = rng.uniform(*sparsity_interval)
-        for true_thresh in sorted(set(w[k, :])):
-            if (w[k, :] < true_thresh).mean() > sparsity_thresh:
-                break
-        true_mask[k, w[k, :] < true_thresh] = False
-
-    # add some noise to avoid exactly zero values
-    w = np.where(true_mask, w, np.abs(rng.standard_normal(w_shape) / 100))
-    # assert ((w >= true_thresh) == true_mask).all()
-    # print(f"true w threshold: {true_thresh}")
-
-    z_informative = z[:, :n_informative_factors]
-    w_informative = w[:n_informative_factors, :]
-
-    rate = z_informative @ w_informative + np.abs(rng.normal(0, sigma))
-    x = np.array(rng.poisson(rate), dtype=np.int32)
-
-    return w, true_mask, z, x
-
-
-def generate_spectra_5e(
-    rng,
-    n_samples=1000,
-    n_features=500,
-    n_factors=10,
-    factor_size=20,
-    overlap_coef=0.95,
-    sigma=2,
-):
-    # factor scores
-    z_shape = (n_samples, n_factors)
-    z = rng.lognormal(0, 1, size=z_shape)
-    z = np.where(z < 1, np.abs(rng.standard_normal(z_shape) / 100), z)
-
-    w_shape = (n_factors, n_features)
-    w = rng.exponential(16, size=w_shape)
-
-    true_mask = np.zeros_like(w).astype(bool)
-
-    idx_pairs = []
-    indices = list(range(true_mask.shape[0]))
-    while indices:
-        idx_pairs.append(
-            (
-                indices.pop(rng.choice(len(indices), 1)[0]),
-                indices.pop(rng.choice(len(indices), 1)[0]),
-            )
-        )
-
-    n_overlap = int(factor_size * overlap_coef)
-
-    for k, l in idx_pairs:
-        on_idx_k = rng.choice(true_mask.shape[1], factor_size, replace=False)
-        on_idx_l = rng.choice(true_mask.shape[1], factor_size, replace=False)
-        on_idx_l[:n_overlap] = on_idx_k[:n_overlap]
-        true_mask[k, on_idx_k] = True
-        true_mask[l, on_idx_l] = True
-
-    w *= true_mask
-    # add some noise to avoid exactly zero values
-    w = np.where(true_mask, w, np.abs(rng.standard_normal(w_shape) / 100))
-
-    rate = z @ w + np.abs(rng.normal(0, sigma))
-    x = np.array(rng.poisson(rate), dtype=np.int32)
-
-    return w, true_mask, z, x
+    return {
+        "expimap": log_x_centered.astype(np.float32),
+        "expimap_nb": x.astype(np.float32),
+        "expimap_hardmask": log_x_centered.astype(np.float32),
+        "expimap_hardmask_nb": x.astype(np.float32),
+        "spectra": log_x.astype(np.float32),
+        "mofaflex": log_x_centered.astype(np.float32),
+        "mofaflex_nmf": log_x.astype(np.float32),
+    }
 
 
 def get_rand_noisy_mask(rng, true_mask, fpr=0.2, fnr=0.2, seed=None):
@@ -230,21 +397,6 @@ def get_rand_noisy_mask(rng, true_mask, fpr=0.2, fnr=0.2, seed=None):
         noisy_mask[k, fn_idx] = False
 
     return noisy_mask
-
-
-def train_nmf(data, mask, seed=0, **kwargs):
-    n_components = kwargs.pop("n_components", mask.shape[0])
-    init = kwargs.pop("init", "random")
-    max_iter = kwargs.pop("max_iter", 1000)
-    model = NMF(
-        n_components=n_components,
-        init=init,
-        max_iter=max_iter,
-        random_state=seed,
-        **kwargs,
-    )
-    model.fit(data)
-    return model
 
 
 def train_spectra(data, mask, terms=None, **kwargs):
@@ -342,7 +494,17 @@ def train_expimap(data, mask, seed=0, terms=None, **kwargs):
     return model
 
 
-def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None, terms=None, **kwargs):
+def train_mofaflex(
+    data,
+    mask,
+    obs,
+    var,
+    obs_names=None,
+    var_names=None,
+    seed=None,
+    terms=None,
+    **kwargs,
+):
     adata = ad.AnnData(data, obs=obs, var=var)
     if obs_names is not None:
         adata.obs_names = obs_names
@@ -351,6 +513,8 @@ def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None
     if terms is None:
         terms = [f"factor_{k}" for k in range(mask.shape[0])]
     adata.varm["I"] = pd.DataFrame(mask, index=terms, columns=adata.var_names).T
+
+    # import ipdb; ipdb.set_trace()
 
     device = kwargs.pop("device", "cpu")
     prior_penalty = kwargs.pop("prior_penalty", 0.005)
@@ -377,7 +541,8 @@ def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None
         use_obs=None,
         use_var=None,
         plot_data_overview=False,
-        remove_constant_features=remove_constant_features
+        remove_constant_features=remove_constant_features,
+        annotations_varm_key="I",
     )
 
     model_opts = ModelOptions(
@@ -387,12 +552,9 @@ def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None
         likelihoods={"view_1": likelihood},
         nonnegative_weights=nmf,
         nonnegative_factors=nmf,
-        annotations_varm_key="I",
         prior_penalty=prior_penalty,
         init_factors=init_factors,
         init_scale=init_scale,
-        # dense_factor_scale=dense_factor_scale,
-        # gamma_prior_scale=gamma_prior_scale,
     )
 
     training_opts = TrainingOptions(
@@ -402,21 +564,19 @@ def train_prismo(data, mask, obs, var, obs_names=None, var_names=None, seed=None
         n_particles=n_particles,
         lr=lr,
         early_stopper_patience=early_stopper_patience,
-        print_every=500,
         save_path=save_path,
         seed=seed,
     )
-    
-    print(type(adata))
-    print(adata.shape)
 
-    return PRISMO({"group_1": {"view_1": adata}}, data_opts, model_opts, training_opts)
+    # import ipdb; ipdb.set_trace()
+
+    return MOFAFLEX({"group_1": {"view_1": adata}}, data_opts, model_opts, training_opts)
 
 
 def get_factor_loadings(model, with_dense=False):
     if type(model).__name__ == "NMF":
         return model.components_
-    if type(model).__name__ == "PRISMO":
+    if type(model).__name__ == "MOFAFLEX":
         w_hat = model.get_weights("numpy")["view_1"]
         if not with_dense and model.n_dense_factors > 0:
             return w_hat[model.n_dense_factors :, :]
@@ -439,7 +599,7 @@ def get_factor_loadings(model, with_dense=False):
 def get_factor_scores(model, data, with_dense=False):
     if type(model).__name__ == "NMF":
         return model.transform(data)
-    if type(model).__name__ == "PRISMO":
+    if type(model).__name__ == "MOFAFLEX":
         z_hat = model.get_factors("numpy")["group_1"]
         if not with_dense and model.n_dense_factors > 0:
             return z_hat[:, model.n_dense_factors :]
@@ -462,7 +622,7 @@ def get_factor_scores(model, data, with_dense=False):
 def get_reconstructed(model, data):
     if type(model).__name__ == "NMF":
         return get_factor_scores(model, data) @ get_factor_loadings(model)
-    if type(model).__name__ == "PRISMO":
+    if type(model).__name__ == "MOFAFLEX":
         return get_factor_scores(model, data, with_dense=True) @ get_factor_loadings(
             model, with_dense=True
         )
@@ -500,13 +660,12 @@ def get_variance_explained(model, data, per_factor=False):
 
 
 def get_rmse(model, data, per_factor=False):
-    z = get_factor_scores(model, data)
-    w = get_factor_loadings(model)
     if not per_factor:
         return root_mean_squared_error(data, get_reconstructed(model, data))
-    n_factors = z.shape[1]
+    z = get_factor_scores(model, data)
+    w = get_factor_loadings(model)
     rmse = []
-    for k in range(n_factors):
+    for k in range(z.shape[1]):
         y_pred_fac_k = np.outer(z[:, k], w[k, :])
         rmse.append(root_mean_squared_error(data, y_pred_fac_k))
     return rmse
@@ -613,7 +772,6 @@ def get_reconstruction_fraction(true_mask, noisy_mask, model, top=None):
 
 def get_average_precision(true_mask, model, per_factor=False, top=None):
     w_hat = get_factor_loadings(model)
-    print(w_hat.shape)
     _, w_hat, true_mask = sort_and_subset(w_hat, true_mask, top)
     if not per_factor:
         with warnings.catch_warnings():
