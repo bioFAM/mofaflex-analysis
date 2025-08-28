@@ -1,34 +1,27 @@
-# run with "prismo" kernel
+import mofaflex as mfl
+from data_loader import load_cll
 
 def main():
-    from prismo import (
-        PRISMO,
-        DataOptions,
-        ModelOptions,
-        TrainingOptions,
-    )
-    from data_loader import load_cll
-
     data = load_cll()
 
     for seed in range(10):
-        PRISMO(
+        mfl.MOFAFLEX(
             data,
-            DataOptions(
+            mfl.DataOptions(
                 plot_data_overview=False,
             ),
-            ModelOptions(
+            mfl.ModelOptions(
                 n_factors=10,
                 weight_prior="Horseshoe",
                 factor_prior="Normal",
                 likelihoods="Normal",
             ),
-            TrainingOptions(
-                device="cuda:1",
+            mfl.TrainingOptions(
+                device="cuda:0",
                 max_epochs=10000,
                 lr=0.05,
                 early_stopper_patience=1000,
-                save_path=f"models/prismo_hs_normal_{seed}",
+                save_path=f"models/mofaflex_{seed}",
                 seed=seed,
             )
         )

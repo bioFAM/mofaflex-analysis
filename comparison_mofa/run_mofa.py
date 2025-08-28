@@ -1,10 +1,8 @@
-# run with "muon" kernel
+import muon as mu
+import pandas as pd
+from data_loader import load_cll
 
 def main():
-    import muon as mu
-    import pandas as pd
-    from data_loader import load_cll
-
     mdata = load_cll()
 
     mu.tl.mofa(mdata, use_obs='union',
