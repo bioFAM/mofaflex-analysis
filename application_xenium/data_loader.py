@@ -9,9 +9,12 @@ def load_xenium_breast_cancer():
     if os.path.isfile(os.path.join(module_dir, "data/xenium.h5ad")):
         xenium = sc.read_h5ad(os.path.join(module_dir, "data/xenium.h5ad"))
     else:
-        xenium = sc.read_10x_h5(os.path.join(module_dir, "data/xenium/cell_feature_matrix.h5"))
+        xenium = sc.read_10x_h5(
+            os.path.join(module_dir, "data/xenium/cell_feature_matrix.h5")
+        )
         xenium_celltypes = pd.read_excel(
-            os.path.join(module_dir, "data/celltypes.xlsx"), sheet_name="Xenium R1 Fig1-5 (supervised)"
+            os.path.join(module_dir, "data/celltypes.xlsx"),
+            sheet_name="Xenium R1 Fig1-5 (supervised)",
         )
         xenium_celltypes.set_index("Barcode", inplace=True)
         xenium_celltypes.index.name = None
@@ -20,7 +23,13 @@ def load_xenium_breast_cancer():
         xenium_metadata = pd.read_csv(os.path.join(module_dir, "data/xenium/cells.csv"))
         xenium_metadata["cell_id"] = xenium_metadata["cell_id"].astype(str)
         xenium_metadata.set_index("cell_id", inplace=True)
-        xenium.obs = pd.merge(xenium_celltypes, xenium_metadata, left_index=True, right_index=True, how="left")
+        xenium.obs = pd.merge(
+            xenium_celltypes,
+            xenium_metadata,
+            left_index=True,
+            right_index=True,
+            how="left",
+        )
         xenium.var["symbol"] = xenium.var.index.copy()
         xenium.var.index = xenium.var["gene_ids"]
         xenium.var.drop(columns=["gene_ids", "feature_types", "genome"], inplace=True)
