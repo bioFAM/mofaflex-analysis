@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mofaflex-sensitivity"
+version = "0.1.0"
+description = "Boilerplate for training and evaluating MOFA-FLEX models on synthetic data."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "matplotlib>=3.8",
+  "mofaflex==0.1.0.post1",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "scikit-learn>=1.5",
+  "scipy>=1.12",
+  "seaborn>=0.13",
+]
+
+[project.scripts]
+mfl-synth = "mofaflex_sensitivity.cli:main"
+mfl-mca-sensitivity = "mofaflex_sensitivity.mca_filter_sensitivity:main"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]

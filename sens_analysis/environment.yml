@@ -1,0 +1,10 @@
+name: mfl_sens
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - matplotlib>=3.8
+  - seaborn>=0.13
+  - pip:
+      - mofaflex==0.1.0.post1
