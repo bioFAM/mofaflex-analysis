@@ -1,0 +1,27 @@
+task: vertical_integration
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  input_format: "h5ad"
+  protein_obsm_key: "protein_expression"
+  enable_gene_set_mask: false
+
+model:
+  name: "mofaflex"
+  n_factors: 20
+  weight_prior: "Horseshoe"
+  rna_likelihood: "Normal"
+  view2_key: "prot"
+  view2_likelihood: "Normal"
+  nonnegative_weights: true
+  nonnegative_factors: true
+  init_factors: 0.0
+  init_scale: 0.1
+  lr: 0.003
+  seed: 42
+  max_epochs: 10000
+  device: "cuda"
+  mofaflex_src: "/home/aqoku/projects/code_new/mofaflex"
+
+output:
+  dir: "outputs/sln_208_d1_mofaflex"

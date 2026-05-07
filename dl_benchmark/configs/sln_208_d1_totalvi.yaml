@@ -1,0 +1,15 @@
+task: vertical_integration
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  protein_obsm_key: "protein_expression"
+  counts_layer: "counts"
+  batch_key: ""
+
+model:
+  name: "totalvi"
+  latent_dim: 20
+  max_epochs: 200
+
+output:
+  dir: "outputs/sln_208_d1_totalvi"

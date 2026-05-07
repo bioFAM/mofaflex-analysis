@@ -1,0 +1,34 @@
+task: vertical_integration
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1_mofaflex_clrprot.h5mu"
+  input_format: "h5mu"
+  annotations_varm_key: "gene_set_mask"
+  enable_gene_set_mask: true
+  gene_set_source: "mca"
+  mca_gmt_url: "https://github.com/bioFAM/mofaflex-analysis/raw/refs/heads/main/msigdb/mmc5_gene.gmt"
+  msigdb_category: "mh.all"
+  msigdb_dbver: "2023.2.Mm"
+  gene_set_min_fraction: 0.1
+  gene_set_min_count: 15
+  gene_set_max_count: 300
+  gene_set_similarity_threshold: 0.8
+
+model:
+  name: "mofaflex_informed_mca_d1_clrprot"
+  n_factors: 10
+  weight_prior: "Horseshoe"
+  rna_likelihood: "Normal"
+  view2_key: "prot"
+  view2_likelihood: "Normal"
+  nonnegative_weights: true
+  nonnegative_factors: true
+  init_factors: 0.0
+  init_scale: 0.1
+  lr: 0.003
+  seed: 42
+  max_epochs: 10000
+  mofaflex_src: "/home/aqoku/projects/code_new/mofaflex"
+
+output:
+  dir: "outputs/sln_208_d1_mofaflex_informed_mca_clrprot"

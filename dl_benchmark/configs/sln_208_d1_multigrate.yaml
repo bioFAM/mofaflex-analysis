@@ -1,0 +1,19 @@
+task: vertical_integration
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  input_format: "h5ad"
+  protein_obsm_key: "protein_expression"
+
+model:
+  name: "multigrate"
+  latent_dim: 20
+  max_epochs: 200
+  view2_key: "prot"
+  rna_loss: "nb"
+  atac_loss: "mse"
+  kl_coef: 0.1
+  integ_coef: 3000.0
+
+output:
+  dir: "outputs/sln_208_d1_multigrate"

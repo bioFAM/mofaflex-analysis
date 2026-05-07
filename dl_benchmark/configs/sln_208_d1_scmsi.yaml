@@ -1,0 +1,18 @@
+task: embedding_inference
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  protein_obsm_key: "protein_expression"
+  counts_layer: "counts"
+
+model:
+  name: "scmsi"
+  script_dir: "/home/aqoku/projects/code_new/scMultiBench/tools_scripts/scMSI"
+  latent_dim: 20
+  epochs: 400
+  batch_size: 128
+  lr: 0.0004
+  seed: 0
+
+output:
+  dir: "outputs/sln_208_d1_scmsi"

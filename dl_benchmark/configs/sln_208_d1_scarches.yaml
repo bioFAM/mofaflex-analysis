@@ -1,0 +1,23 @@
+task: vertical_integration
+dataset:
+  name: "sln_208_d1_scarches"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_totalvi.h5ad"
+  protein_obsm_key: "protein_expression"
+  counts_layer: "counts"
+  batch_key: "batch"
+  reference_batch_values:
+    - "SLN208-D2"
+  query_batch_values:
+    - "SLN208-D1"
+
+model:
+  name: "scarches"
+  latent_dim: 20
+  reference_max_epochs: 200
+  surgery_max_epochs: 200
+  freeze_expression: true
+  plan_kwargs:
+    weight_decay: 0.0
+
+output:
+  dir: "outputs/sln_208_d1_scarches"

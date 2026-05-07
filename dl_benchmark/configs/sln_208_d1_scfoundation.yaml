@@ -1,0 +1,20 @@
+task: embedding_inference
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+
+model:
+  name: "scfoundation"
+  model_dir: "/home/aqoku/projects/code_new/scFoundation/model"
+  task_name: "sln_208_d1"
+  pool_type: "all"
+  tgthighres: "t4"
+  pre_normalized: "F"
+  version: "ce"
+
+runtime:
+  batch_size: 64
+  device: "cuda"
+
+output:
+  dir: "outputs/sln_208_d1_scfoundation"

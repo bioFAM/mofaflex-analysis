@@ -1,0 +1,29 @@
+task: embedding_inference
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  protein_obsm_key: "protein_expression"
+
+model:
+  name: "scoit"
+  k1: 10
+  k2: 10
+  k3: 10
+  normalization: true
+  pre_impute: false
+  opt: "Adam"
+  dist: "gaussian"
+  lr: 0.01
+  n_epochs: 1000
+  lambda_c_regularizer: 0.0
+  lambda_g_regularizer: 0.0
+  lambda_o_regularizer: [0.0, 0.0]
+  earlystopping: true
+  seed: 123
+
+runtime:
+  device: "cuda"
+  verbose: false
+
+output:
+  dir: "outputs/sln_208_d1_scoit"

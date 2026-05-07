@@ -1,0 +1,18 @@
+task: embedding_inference
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  protein_obsm_key: "protein_expression"
+
+model:
+  name: "mojitoo"
+  rna_pcs: 20
+  prot_pcs: 20
+  corr_pval: 0.05
+  fdr_method: "fdr_bh"
+  is_reduction_center: false
+  is_reduction_scale: false
+  seed: 42
+
+output:
+  dir: "outputs/sln_208_d1_mojitoo"

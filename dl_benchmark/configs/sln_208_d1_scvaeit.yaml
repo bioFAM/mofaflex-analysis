@@ -1,0 +1,32 @@
+task: embedding_inference
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  protein_obsm_key: "protein_expression"
+
+model:
+  name: "scvaeit"
+  dim_block_enc: [128, 64]
+  dim_block_dec: [128, 64]
+  dim_block_embed: [128, 64]
+  dimensions: [32]
+  dim_latent: 20
+  dist_block: ["NB", "NB"]
+  beta_unobs: 0.9
+  beta_modal: [0.05, 0.95]
+  p_feat: 0.5
+  learning_rate: 0.0003
+  num_epoch: 200
+  batch_size: 256
+  batch_size_inference: 512
+  save_every_epoch: 50
+  early_stopping_patience: 20
+  early_stopping_tolerance: 0.0001
+  early_stopping_relative: true
+  seed: 0
+
+runtime:
+  training_mode_for_eval: true
+
+output:
+  dir: "outputs/sln_208_d1_scvaeit"

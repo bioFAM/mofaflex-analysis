@@ -1,0 +1,24 @@
+task: embedding_inference
+dataset:
+  name: "sln_208_d1"
+  path: "/home/aqoku/projects/data/mfl_bench/sln_208_single_batch_d1.h5ad"
+  protein_obsm_key: "protein_expression"
+  counts_layer: "counts"
+
+model:
+  name: "scmm"
+  script_dir: "/home/aqoku/projects/code_new/scMultiBench/tools_scripts/scMM"
+  latent_dim: 20
+  epochs: 200
+  batch_size: 64
+  lr: 0.0001
+  num_hidden_layers: 1
+  r_hidden_dim: 100
+  p_hidden_dim: 20
+  seed: 0
+
+runtime:
+  no_cuda: false
+
+output:
+  dir: "outputs/sln_208_d1_scmm"
